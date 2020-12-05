@@ -1,0 +1,89 @@
+---
+title: "Lab Part 2"
+author: "Laurel Abowd"
+date: "12/4/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(here)
+library(janitor)
+library(broom)
+```
+
+## Read in data
+
+```{r}
+lizards <- read_csv(here("data","lizards.csv"))
+```
+
+Get counts of lizards by species
+
+```{r}
+lizards %>% 
+  count(spp) %>% 
+  arrange(-n)
+```
+
+The most commonly observed lizard here (UTST) is *Uta stansburiana*, or commonly the side-blotched lizard. We'll continue by exploring just that lizard. 
+
+## Make a subset
+
+Make a subset from `lizards` that only contains observations for: 
+ 
+- side-blotched lizards (UTST)
+- at sites "IBPE" (enclosure grassland site), "RABB" (rabbit mesquite site), and "EAST" (east tarbush site)
+- where the tail condition is recorded as either "W" (whole) or "B" (broken)
+
+```{r}
+utst <- lizards %>% 
+  filter(spp == "UTST") %>% 
+  filter(site %in% c("IBPE", "RABB", "EAST")) %>% 
+  filter(tail %in% c("W", "B"))
+```
+
+
+## Find counts & proportions, put in a table
+
+The `janitor::tabyl()` function gets this pretty close to contingency table format...
+
+```{r}
+tail_counts <- utst %>%
+  janitor::tabyl(site, tail)
+
+tail_proportions <- tail_counts %>% 
+  janitor::adorn_percentages() %>% 
+  janitor::adorn_pct_formatting(digits = 2) %>% 
+  janitor::adorn_ns()
+```
+
+## Make contingency table and run chi-square
+
+First, we see that the site is its own variable - when we run chi-square, we really only want the counts in the table. 
+
+We can use `column_to_rownames` to convert entries in a column to stored rownames: 
+
+```{r}
+lizard_ct <- tail_counts %>%
+  column_to_rownames(var = "site")
+```
+
+**Now** this is in shape to run chi-square. 
+
+What are we asking? Are site and tail breakage independent? In other words: is there a significant association between site and tail breakage?
+
+```{r}
+lizard_x2 <- chisq.test(lizard_ct)
+lizard_x2
+
+lizard_tidy <- broom::tidy(lizard_x2) #allows you to do inline referencing 
+```
+
+There is a significant association between site and lizard tail breakage ($\chi$^2^(`r lizard_tidy$parameter`) = `r round(lizard_tidy$statistic,2)`, *p* = `r round(lizard_tidy$p.value, 3)`). 
+
+Remember: you'd also want to report the actual counts and proportions in each group! 
+
+## END Part 2
+
